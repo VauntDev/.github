@@ -1,0 +1,127 @@
+name: Pull Request
+
+on:
+  workflow_call:
+    inputs:
+      GH_CI_USER:
+        description: 'User for GitHub auth'
+        required: true
+        type: string
+      GOPRIVATE:
+        description: 'GOPRIVATE env for go commands'
+        required: false
+        type: string
+    secrets:
+      GH_CI_PAT:
+        description: 'Token password for GitHub auth'
+        required: true
+
+env:
+  GOPRIVATE: ${{ inputs.GOPRIVATE }}
+
+jobs:
+  lint:
+    #
+    # runs golangci-lint
+    #
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout code to build.
+      - name: Checkout repo
+        uses: actions/checkout@v2
+      # Setup Go in order to vendor dependencies in a later step.
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '^1'
+      # Use auth to get access to private Git repos for Go code dependencies.
+      - name: Configure git for private modules
+        env:
+          TOKEN: ${{ secrets.GH_CI_PAT }}
+          GITHUB_USERNAME: ${{ inputs.GH_CI_USER }}
+        run: git config --global url."https://${GITHUB_USERNAME}:${TOKEN}@github.com".insteadOf "https://github.com"
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: latest
+
+  test:
+    #
+    # ensure go standards and tests pass
+    #
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # List of go versions to test on.
+        go: ['^1.16', '^1.17', '^1']
+    steps:
+      # Checkout go code to test.
+      - name: Checkout repo
+        uses: actions/checkout@v2
+      # Setup Go for each version in the matrix.
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go }}
+      # Use auth to get access to private Git repos for Go code dependencies.
+      - name: Configure git for private modules
+        env:
+          TOKEN: ${{ secrets.GH_CI_PAT }}
+          GITHUB_USERNAME: ${{ inputs.GH_CI_USER }}
+        run: git config --global url."https://${GITHUB_USERNAME}:${TOKEN}@github.com".insteadOf "https://github.com"
+      # Vendor Go code for Go module.
+      - name: go mod vendor
+        run: find . -name vendor -prune -o -name go.mod -print | xargs -n1 dirname | xargs -n1 -I{} bash -c "pushd {}; go mod vendor"
+      # Go vet every Go module.
+      - name: go vet
+        run: find . -name vendor -prune -o -name go.mod -print | xargs -n1 dirname | xargs -n1 -I{} bash -c "pushd {}; go vet ./..."
+      # Run unit test for Go module.
+      - name: go test
+        run: find . -name vendor -prune -o -name go.mod -print | xargs -n1 dirname | xargs -n1 -I{} bash -c "pushd {}; go test -mod=vendor --race -v ./..."
+
+  docker-build:
+    #
+    # ensures the docker image will build without pushing to the registry
+    # uses the git sha for the most recent commit for the version
+    #
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout code to build.
+      - name: Checkout repo
+        uses: actions/checkout@v2
+      # Setup Go in order to vendor dependencies in a later step.
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '^1'
+      # Use auth to get access to private Git repos for Go code dependencies.
+      - name: Configure git for private modules
+        env:
+          TOKEN: ${{ secrets.GH_CI_PAT }}
+          GITHUB_USERNAME: ${{ inputs.GH_CI_USER }}
+        run: git config --global url."https://${GITHUB_USERNAME}:${TOKEN}@github.com".insteadOf "https://github.com"
+      # Vendor Go code needed to build app.
+      - name: go mod vendor
+        run: go mod vendor
+      # Setup docker build arguments.
+      - name: Docker release meta
+        id: release
+        uses: docker/metadata-action@v3
+        with:
+          images: |
+            ${{ github.repository }}
+          tags: |
+            type=sha
+      # Setup Docker builder to do build.
+      - name: Setup Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v1
+      # Build the app.
+      - name: Build
+        uses: docker/build-push-action@v2
+        with:
+          push: false
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          tags: ${{ steps.release.outputs.tags }}

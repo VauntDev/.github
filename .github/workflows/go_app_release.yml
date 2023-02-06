@@ -1,0 +1,101 @@
+name: Release Docker Version
+
+on:
+  workflow_call:
+    inputs:
+      GH_CI_USER:
+        description: 'User for GitHub auth'
+        required: true
+        type: string
+      GOPRIVATE:
+        description: 'GOPRIVATE env for go commands'
+        required: false
+        type: string
+    secrets:
+      GH_CI_PAT:
+        description: 'Token password for GitHub auth'
+        required: true
+      # Container Registry arguments
+      CONTAINER_REGISTRY:
+        description: 'Container Registry address to which to publish (leave blank to not publish)'
+        required: false
+      CONTAINER_REGISTRY_JSON_KEY:
+        description: 'Key for publishing to Container Registry'
+        required: false
+
+env:
+  GOPRIVATE: ${{ inputs.GOPRIVATE }}
+
+jobs:
+  push:
+    #
+    # Build the Docker image artifact and deliver it.
+    #
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout code needed to build docker image.
+      - uses: actions/checkout@v2
+      # Setup Go in order to vendor dependencies in a later step.
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '^1'
+      # Use auth to get access to private Git repos for Go code dependencies.
+      - name: Configure git for private modules
+        env:
+          TOKEN: ${{ secrets.GH_CI_PAT }}
+          GITHUB_USERNAME: ${{ inputs.GH_CI_USER }}
+        run: git config --global url."https://${GITHUB_USERNAME}:${TOKEN}@github.com".insteadOf "https://github.com"
+      # Vendor Go code needed to build docker image.
+      - name: go mod vendor
+        run: go mod vendor
+      # Parse GitHub repository name for use in constructing docker image names.
+      - name: Parse Repo Name
+        id: parse_repo_name
+        run: |
+          echo ::set-output name=repo_name::"$( echo '${{ github.repository }}' | awk -F '/' '{print $2}' )"
+      # Make the docker fields for Container Registry if we're pushing to it.
+      - name: Construct Container Registry fields
+        env:
+          CONTAINER_REGISTRY: ${{ secrets.CONTAINER_REGISTRY }}
+        if: ${{ env.CONTAINER_REGISTRY }}
+        run: |
+          echo "CONTAINER_REGISTRY_IMAGE_NAME=${{ secrets.CONTAINER_REGISTRY }}/${{ steps.parse_repo_name.outputs.repo_name }}" >> $GITHUB_ENV
+      # Create docker image meta data. Docker tags include the Git tag itself and the sematic version parsing of that tag if possible.
+      - name: Docker release meta 
+        id: release
+        uses: docker/metadata-action@v3
+        with:
+          images: |
+            ${{ env.CONTAINER_REGISTRY_IMAGE_NAME }}
+          flavor: |
+            latest=false
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+      # Login to Container Registry if we're pushing to it.
+      - name: Login to Container Registry
+        env:
+          CONTAINER_REGISTRY_JSON_KEY: ${{ secrets.CONTAINER_REGISTRY_JSON_KEY }}
+        if: ${{ secrets.CONTAINER_REGISTRY_JSON_KEY }}
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.CONTAINER_REGISTRY }}
+          username: _json_key
+          password: ${{ secrets.CONTAINER_REGISTRY_JSON_KEY }}
+      # Setup Docker builder needed to build multi-architectural images.
+      - name: Setup Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v1
+      # Build and push the image.
+      - name: Build and Push to Artifact Registry and Container Registry
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          build-args: |
+            VERSION=${{ steps.release.outputs.version }}
+          tags: ${{ steps.release.outputs.tags }}
+          labels: ${{ steps.release.outputs.labels }}
