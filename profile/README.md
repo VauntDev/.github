@@ -10,10 +10,10 @@
     <a href="https://vaunt.dev" target="_blank">
         <img src="/img/vaunt-nav-logo.png" height="25" alt="Vaunt Dev">
     </a>
-     builds virbrant open-source communities by <br> rewarding developers for contributions, awarding bespoke achievements, <br> and encouraging lasting connections.
+     builds vibrant open-source communities by <br> rewarding developers for contributions, awarding bespoke achievements, <br> and encouraging lasting connections.
 </h3>
 
-<h3 align="center">Encourage contributions. Celebrate contributors. Grow Communities</h3>
+<h3 align="center">Encourage contributions. Celebrate contributors. Grow communities</h3>
 
 <p align="center">
   <a href="https://discord.gg/bnSFP6pR"><img src="https://img.shields.io/discord/1060982209747636257?label=discord&style=flat-square&color=5a66f6"></a>
