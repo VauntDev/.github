@@ -32,7 +32,7 @@
 </h3>
 <div align="center" style="height:200px">
   <div style="border: 2px solid #cecece;border-radius: 2px 2px;height:200px; width:400px;">
-    <img src="https://api.vaunt.dev/v1/github/entities/VauntDev/contributors?format=svg&private=true" height="200"/>
+    <img src="https://api.vaunt.dev/v1/github/entities/VauntDev/contributors?limit=50&format=svg&private=true" height="200"/>
   </div>
 </div>
 
