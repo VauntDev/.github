@@ -1,14 +1,14 @@
 <br>
 
 <p align="center">
-    <img width="300" src="./img/vaunt-dev-logo.png" alt="Vaunt Dev Logo">
+    <img width="300" src="/img/vaunt-dev-logo.png" alt="Vaunt Dev Logo">
 </p>
 
 <br>
 
 <h3 align="center">
     <a href="https://vaunt.dev" target="_blank">
-        <img src="./img/vaunt-nav-logo.png" height="25" alt="Vaunt Dev">
+        <img src="/img/vaunt-nav-logo.png" height="25" alt="Vaunt Dev">
     </a>
      builds virbrant open-source communities by <br> rewarding developers for contributions, awarding bespoke achievements, <br> and encouraging lasting connections.
 </h3>
